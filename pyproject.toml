@@ -1,0 +1,79 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "meshguard"
+version = "0.1.0"
+description = "Python SDK for MeshGuard - Governance Control Plane for AI Agents"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+    { name = "David Hurley", email = "david@meshguard.app" },
+]
+keywords = [
+    "ai",
+    "agents",
+    "governance",
+    "security",
+    "langchain",
+    "llm",
+    "policy",
+    "audit",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "httpx>=0.24.0",
+]
+
+[project.optional-dependencies]
+langchain = [
+    "langchain>=0.1.0",
+]
+all = [
+    "langchain>=0.1.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+]
+
+[project.urls]
+Homepage = "https://meshguard.app"
+Documentation = "https://github.com/dbhurley/meshguard-python#readme"
+Repository = "https://github.com/dbhurley/meshguard-python"
+Issues = "https://github.com/dbhurley/meshguard-python/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["meshguard"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
