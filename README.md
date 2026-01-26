@@ -255,5 +255,5 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 - **Website:** https://meshguard.app
 - **Dashboard:** https://dashboard.meshguard.app
-- **Documentation:** https://github.com/dbhurley/meshguard
-- **Issues:** https://github.com/dbhurley/meshguard-python/issues
+- **Documentation:** https://github.com/meshguard/meshguard
+- **Issues:** https://github.com/meshguard/meshguard-python/issues

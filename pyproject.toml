@@ -56,9 +56,9 @@ dev = [
 
 [project.urls]
 Homepage = "https://meshguard.app"
-Documentation = "https://github.com/dbhurley/meshguard-python#readme"
-Repository = "https://github.com/dbhurley/meshguard-python"
-Issues = "https://github.com/dbhurley/meshguard-python/issues"
+Documentation = "https://github.com/meshguard/meshguard-python#readme"
+Repository = "https://github.com/meshguard/meshguard-python"
+Issues = "https://github.com/meshguard/meshguard-python/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["meshguard"]
