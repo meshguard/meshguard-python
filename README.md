@@ -23,10 +23,9 @@ pip install meshguard[langchain]
 ```python
 from meshguard import MeshGuardClient
 
-# Initialize client
+# Connect to MeshGuard (free tier available at meshguard.app)
 client = MeshGuardClient(
-    gateway_url="https://dashboard.meshguard.app",
-    agent_token="your-agent-token",
+    agent_token="your-agent-token",  # Get your token at meshguard.app
 )
 
 # Check if an action is allowed
@@ -45,14 +44,18 @@ with client.govern("write:email") as decision:
     send_email(to="user@example.com", body="Hello!")
 ```
 
+> **Pro tip:** Need advanced features like SSO, custom policies, or dedicated support? Check out [MeshGuard Pro and Enterprise](https://meshguard.app/pricing).
+
 ## Environment Variables
 
 You can configure the client using environment variables:
 
 ```bash
-export MESHGUARD_GATEWAY_URL="https://dashboard.meshguard.app"
 export MESHGUARD_AGENT_TOKEN="your-agent-token"
 export MESHGUARD_ADMIN_TOKEN="your-admin-token"  # For admin operations
+
+# Optional: Override gateway URL (defaults to https://dashboard.meshguard.app)
+# export MESHGUARD_GATEWAY_URL="https://meshguard.yourcompany.com"  # Enterprise self-hosted only
 ```
 
 Then simply:
@@ -60,7 +63,7 @@ Then simply:
 ```python
 from meshguard import MeshGuardClient
 
-client = MeshGuardClient()  # Uses env vars
+client = MeshGuardClient()  # Uses env vars, connects to MeshGuard SaaS
 ```
 
 ## LangChain Integration

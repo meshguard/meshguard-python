@@ -83,7 +83,7 @@ class MeshGuardClient:
         self.gateway_url = (
             gateway_url 
             or os.environ.get("MESHGUARD_GATEWAY_URL") 
-            or "http://localhost:3100"
+            or "https://dashboard.meshguard.app"
         ).rstrip("/")
         
         self.agent_token = agent_token or os.environ.get("MESHGUARD_AGENT_TOKEN")
