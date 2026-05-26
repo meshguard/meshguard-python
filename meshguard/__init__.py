@@ -6,8 +6,8 @@ Governance control plane for AI agents.
 
 from .client import MeshGuardClient
 from .exceptions import (
-    MeshGuardError,
     AuthenticationError,
+    MeshGuardError,
     PolicyDeniedError,
     RateLimitError,
 )

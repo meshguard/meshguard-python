@@ -6,13 +6,15 @@ Core client for interacting with MeshGuard gateway.
 
 import os
 import uuid
-import httpx
-from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field
+from types import TracebackType
+from typing import Any, Dict, List, Optional, Type, cast
+
+import httpx
 
 from .exceptions import (
-    MeshGuardError,
     AuthenticationError,
+    MeshGuardError,
     PolicyDeniedError,
     RateLimitError,
 )
@@ -43,25 +45,25 @@ class Agent:
 class MeshGuardClient:
     """
     Client for MeshGuard gateway.
-    
+
     Usage:
         client = MeshGuardClient(
             gateway_url="https://dashboard.meshguard.app",
             agent_token="your-agent-token"
         )
-        
+
         # Check if an action is allowed
         decision = client.check("read:contacts")
         if decision.allowed:
             # Proceed with action
             pass
-        
+
         # Or use the context manager for automatic tracing
         with client.govern("read:contacts") as ctx:
             # Your code here - raises PolicyDeniedError if not allowed
             pass
     """
-    
+
     def __init__(
         self,
         gateway_url: Optional[str] = None,
@@ -69,10 +71,10 @@ class MeshGuardClient:
         admin_token: Optional[str] = None,
         timeout: float = 30.0,
         trace_id: Optional[str] = None,
-    ):
+    ) -> None:
         """
         Initialize MeshGuard client.
-        
+
         Args:
             gateway_url: MeshGuard gateway URL (or MESHGUARD_GATEWAY_URL env var)
             agent_token: Agent JWT token (or MESHGUARD_AGENT_TOKEN env var)
@@ -81,18 +83,18 @@ class MeshGuardClient:
             trace_id: Optional trace ID for request correlation
         """
         self.gateway_url = (
-            gateway_url 
-            or os.environ.get("MESHGUARD_GATEWAY_URL") 
+            gateway_url
+            or os.environ.get("MESHGUARD_GATEWAY_URL")
             or "https://dashboard.meshguard.app"
         ).rstrip("/")
-        
+
         self.agent_token = agent_token or os.environ.get("MESHGUARD_AGENT_TOKEN")
         self.admin_token = admin_token or os.environ.get("MESHGUARD_ADMIN_TOKEN")
         self.timeout = timeout
         self.trace_id = trace_id or str(uuid.uuid4())
-        
+
         self._client = httpx.Client(timeout=timeout)
-    
+
     def _headers(self, include_auth: bool = True) -> Dict[str, str]:
         """Build request headers."""
         headers = {
@@ -101,7 +103,7 @@ class MeshGuardClient:
         if include_auth and self.agent_token:
             headers["Authorization"] = f"Bearer {self.agent_token}"
         return headers
-    
+
     def _admin_headers(self) -> Dict[str, str]:
         """Build admin request headers."""
         if not self.admin_token:
@@ -110,7 +112,7 @@ class MeshGuardClient:
             "X-Admin-Token": self.admin_token,
             "X-MeshGuard-Trace-ID": self.trace_id,
         }
-    
+
     def _handle_response(self, response: httpx.Response) -> Dict[str, Any]:
         """Handle API response and raise appropriate exceptions."""
         if response.status_code == 401:
@@ -127,19 +129,19 @@ class MeshGuardClient:
             raise RateLimitError("Rate limit exceeded")
         elif response.status_code >= 400:
             raise MeshGuardError(f"Request failed: {response.status_code} {response.text}")
-        
-        return response.json() if response.content else {}
-    
+
+        return cast(Dict[str, Any], response.json()) if response.content else {}
+
     # === Core Governance ===
-    
+
     def check(self, action: str, resource: Optional[str] = None) -> PolicyDecision:
         """
         Check if an action is allowed by policy.
-        
+
         Args:
             action: Action to check (e.g., "read:contacts", "write:email")
             resource: Optional resource identifier
-            
+
         Returns:
             PolicyDecision with allowed status and details
         """
@@ -147,13 +149,13 @@ class MeshGuardClient:
         headers["X-MeshGuard-Action"] = action
         if resource:
             headers["X-MeshGuard-Resource"] = resource
-        
+
         try:
             response = self._client.get(
                 f"{self.gateway_url}/proxy/check",
                 headers=headers,
             )
-            
+
             if response.status_code == 403:
                 data = response.json() if response.content else {}
                 return PolicyDecision(
@@ -165,7 +167,7 @@ class MeshGuardClient:
                     reason=data.get("message"),
                     trace_id=self.trace_id,
                 )
-            
+
             data = self._handle_response(response)
             return PolicyDecision(
                 allowed=True,
@@ -174,7 +176,7 @@ class MeshGuardClient:
                 policy=data.get("policy"),
                 trace_id=self.trace_id,
             )
-            
+
         except PolicyDeniedError as e:
             return PolicyDecision(
                 allowed=False,
@@ -185,18 +187,18 @@ class MeshGuardClient:
                 reason=e.reason,
                 trace_id=self.trace_id,
             )
-    
+
     def enforce(self, action: str, resource: Optional[str] = None) -> PolicyDecision:
         """
         Enforce policy - raises PolicyDeniedError if not allowed.
-        
+
         Args:
             action: Action to check
             resource: Optional resource identifier
-            
+
         Returns:
             PolicyDecision if allowed
-            
+
         Raises:
             PolicyDeniedError: If action is denied
         """
@@ -209,76 +211,76 @@ class MeshGuardClient:
                 reason=decision.reason,
             )
         return decision
-    
-    def govern(self, action: str, resource: Optional[str] = None):
+
+    def govern(self, action: str, resource: Optional[str] = None) -> "GovernedContext":
         """
         Context manager for governed code blocks.
-        
+
         Usage:
             with client.govern("read:contacts"):
                 # This code only runs if allowed
                 contacts = fetch_contacts()
         """
         return GovernedContext(self, action, resource)
-    
+
     # === Proxy Requests ===
-    
+
     def request(
         self,
         method: str,
         path: str,
         action: str,
-        **kwargs,
+        **kwargs: Any,
     ) -> httpx.Response:
         """
         Make a governed request through the MeshGuard proxy.
-        
+
         Args:
             method: HTTP method
             path: Path to proxy (appended to /proxy/)
             action: MeshGuard action for policy evaluation
             **kwargs: Additional arguments passed to httpx
-            
+
         Returns:
             httpx.Response
         """
         headers = kwargs.pop("headers", {})
         headers.update(self._headers())
         headers["X-MeshGuard-Action"] = action
-        
+
         response = self._client.request(
             method,
             f"{self.gateway_url}/proxy/{path.lstrip('/')}",
             headers=headers,
             **kwargs,
         )
-        
+
         self._handle_response(response)
         return response
-    
-    def get(self, path: str, action: str, **kwargs) -> httpx.Response:
+
+    def get(self, path: str, action: str, **kwargs: Any) -> httpx.Response:
         """GET request through proxy."""
         return self.request("GET", path, action, **kwargs)
-    
-    def post(self, path: str, action: str, **kwargs) -> httpx.Response:
+
+    def post(self, path: str, action: str, **kwargs: Any) -> httpx.Response:
         """POST request through proxy."""
         return self.request("POST", path, action, **kwargs)
-    
-    def put(self, path: str, action: str, **kwargs) -> httpx.Response:
+
+    def put(self, path: str, action: str, **kwargs: Any) -> httpx.Response:
         """PUT request through proxy."""
         return self.request("PUT", path, action, **kwargs)
-    
-    def delete(self, path: str, action: str, **kwargs) -> httpx.Response:
+
+    def delete(self, path: str, action: str, **kwargs: Any) -> httpx.Response:
         """DELETE request through proxy."""
         return self.request("DELETE", path, action, **kwargs)
-    
+
     # === Health & Info ===
-    
+
     def health(self) -> Dict[str, Any]:
         """Check gateway health."""
         response = self._client.get(f"{self.gateway_url}/health")
-        return response.json()
-    
+        return cast(Dict[str, Any], response.json())
+
     def is_healthy(self) -> bool:
         """Quick health check."""
         try:
@@ -286,9 +288,9 @@ class MeshGuardClient:
             return health.get("status") == "healthy"
         except Exception:
             return False
-    
+
     # === Admin Operations ===
-    
+
     def list_agents(self) -> List[Agent]:
         """List all agents (requires admin token)."""
         response = self._client.get(
@@ -306,7 +308,7 @@ class MeshGuardClient:
             )
             for a in data.get("agents", [])
         ]
-    
+
     def create_agent(
         self,
         name: str,
@@ -324,7 +326,7 @@ class MeshGuardClient:
             },
         )
         return self._handle_response(response)
-    
+
     def revoke_agent(self, agent_id: str) -> None:
         """Revoke an agent (requires admin token)."""
         response = self._client.delete(
@@ -332,7 +334,7 @@ class MeshGuardClient:
             headers=self._admin_headers(),
         )
         self._handle_response(response)
-    
+
     def list_policies(self) -> List[Dict[str, Any]]:
         """List all policies (requires admin token)."""
         response = self._client.get(
@@ -340,56 +342,66 @@ class MeshGuardClient:
             headers=self._admin_headers(),
         )
         data = self._handle_response(response)
-        return data.get("policies", [])
-    
+        return cast(List[Dict[str, Any]], data.get("policies", []))
+
     def get_audit_log(
         self,
         limit: int = 50,
         decision: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Get audit log entries (requires admin token)."""
-        params = {"limit": limit}
+        params: Dict[str, Any] = {"limit": limit}
         if decision:
             params["decision"] = decision
-            
+
         response = self._client.get(
             f"{self.gateway_url}/admin/audit",
             headers=self._admin_headers(),
             params=params,
         )
         data = self._handle_response(response)
-        return data.get("entries", [])
-    
+        return cast(List[Dict[str, Any]], data.get("entries", []))
+
     # === Cleanup ===
-    
-    def close(self):
+
+    def close(self) -> None:
         """Close the HTTP client."""
         self._client.close()
-    
-    def __enter__(self):
+
+    def __enter__(self) -> "MeshGuardClient":
         return self
-    
-    def __exit__(self, *args):
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
         self.close()
 
 
 class GovernedContext:
     """Context manager for governed code blocks."""
-    
+
     def __init__(
         self,
         client: MeshGuardClient,
         action: str,
         resource: Optional[str] = None,
-    ):
+    ) -> None:
         self.client = client
         self.action = action
         self.resource = resource
         self.decision: Optional[PolicyDecision] = None
-    
+
     def __enter__(self) -> PolicyDecision:
         self.decision = self.client.enforce(self.action, self.resource)
         return self.decision
-    
-    def __exit__(self, *args):
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
         pass

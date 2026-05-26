@@ -5,7 +5,7 @@ Provides decorators and wrappers for governing LangChain agents and tools.
 """
 
 import functools
-from typing import Any, Callable, Optional, List, Dict, Union
+from typing import Any, Callable, Dict, List, Optional
 
 from .client import MeshGuardClient
 from .exceptions import PolicyDeniedError
@@ -14,87 +14,88 @@ from .exceptions import PolicyDeniedError
 def governed_tool(
     action: str,
     client: Optional[MeshGuardClient] = None,
-    on_deny: Optional[Callable] = None,
-):
+    on_deny: Optional[Callable[..., Any]] = None,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     Decorator to govern a LangChain tool with MeshGuard policy.
-    
+
     Usage:
         from meshguard import MeshGuardClient
         from meshguard.langchain import governed_tool
-        
+
         client = MeshGuardClient()
-        
+
         @governed_tool("read:contacts", client=client)
         def fetch_contacts(query: str) -> str:
             # This only runs if policy allows
             return contacts_db.search(query)
-    
+
     Args:
         action: MeshGuard action for policy evaluation
         client: MeshGuard client (or uses MESHGUARD_* env vars)
         on_deny: Optional callback when action is denied
     """
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             _client = client or MeshGuardClient()
-            
+
             try:
                 decision = _client.enforce(action)
                 # Optionally inject decision into kwargs
-                if "meshguard_decision" in func.__code__.co_varnames:
+                code = getattr(func, "__code__", None)
+                if code and "meshguard_decision" in code.co_varnames:
                     kwargs["meshguard_decision"] = decision
                 return func(*args, **kwargs)
-                
+
             except PolicyDeniedError as e:
                 if on_deny:
                     return on_deny(e, *args, **kwargs)
                 raise
-        
+
         # Preserve tool metadata for LangChain
-        wrapper._meshguard_action = action
+        setattr(wrapper, "_meshguard_action", action)
         return wrapper
-    
+
     return decorator
 
 
 class GovernedTool:
     """
     Wrapper to govern an existing LangChain tool.
-    
+
     Usage:
         from langchain.tools import DuckDuckGoSearchRun
         from meshguard import MeshGuardClient
         from meshguard.langchain import GovernedTool
-        
+
         client = MeshGuardClient()
         search = DuckDuckGoSearchRun()
-        
+
         governed_search = GovernedTool(
             tool=search,
             action="read:web_search",
             client=client,
         )
     """
-    
+
     def __init__(
         self,
         tool: Any,
         action: str,
         client: Optional[MeshGuardClient] = None,
-        on_deny: Optional[Callable] = None,
-    ):
+        on_deny: Optional[Callable[..., Any]] = None,
+    ) -> None:
         self.tool = tool
         self.action = action
         self.client = client or MeshGuardClient()
         self.on_deny = on_deny
-        
+
         # Copy tool attributes
         self.name = getattr(tool, "name", tool.__class__.__name__)
         self.description = getattr(tool, "description", "")
-    
-    def run(self, *args, **kwargs) -> Any:
+
+    def run(self, *args: Any, **kwargs: Any) -> Any:
         """Run the tool with governance."""
         try:
             self.client.enforce(self.action)
@@ -103,8 +104,8 @@ class GovernedTool:
             if self.on_deny:
                 return self.on_deny(e, *args, **kwargs)
             raise
-    
-    async def arun(self, *args, **kwargs) -> Any:
+
+    async def arun(self, *args: Any, **kwargs: Any) -> Any:
         """Async run the tool with governance."""
         try:
             self.client.enforce(self.action)
@@ -113,23 +114,23 @@ class GovernedTool:
             if self.on_deny:
                 return self.on_deny(e, *args, **kwargs)
             raise
-    
-    def __call__(self, *args, **kwargs) -> Any:
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         return self.run(*args, **kwargs)
 
 
 class GovernedToolkit:
     """
     Govern multiple tools with MeshGuard policies.
-    
+
     Usage:
         from langchain.agents import load_tools
         from meshguard import MeshGuardClient
         from meshguard.langchain import GovernedToolkit
-        
+
         client = MeshGuardClient()
         tools = load_tools(["serpapi", "llm-math"])
-        
+
         toolkit = GovernedToolkit(
             tools=tools,
             client=client,
@@ -139,29 +140,29 @@ class GovernedToolkit:
             },
             default_action="execute:tool",
         )
-        
+
         governed_tools = toolkit.get_tools()
     """
-    
+
     def __init__(
         self,
         tools: List[Any],
         client: Optional[MeshGuardClient] = None,
         action_map: Optional[Dict[str, str]] = None,
         default_action: str = "execute:tool",
-        on_deny: Optional[Callable] = None,
-    ):
+        on_deny: Optional[Callable[..., Any]] = None,
+    ) -> None:
         self.tools = tools
         self.client = client or MeshGuardClient()
         self.action_map = action_map or {}
         self.default_action = default_action
         self.on_deny = on_deny
-    
+
     def get_action(self, tool: Any) -> str:
         """Get action for a tool."""
         name = getattr(tool, "name", tool.__class__.__name__)
         return self.action_map.get(name, self.default_action)
-    
+
     def get_tools(self) -> List[GovernedTool]:
         """Get governed versions of all tools."""
         return [
@@ -181,21 +182,21 @@ def create_governed_agent(
     client: Optional[MeshGuardClient] = None,
     action_map: Optional[Dict[str, str]] = None,
     agent_type: str = "zero-shot-react-description",
-    **kwargs,
+    **kwargs: Any,
 ) -> Any:
     """
     Create a LangChain agent with governed tools.
-    
+
     Usage:
         from langchain.llms import OpenAI
         from langchain.agents import load_tools
         from meshguard import MeshGuardClient
         from meshguard.langchain import create_governed_agent
-        
+
         client = MeshGuardClient()
         llm = OpenAI()
         tools = load_tools(["serpapi", "llm-math"], llm=llm)
-        
+
         agent = create_governed_agent(
             llm=llm,
             tools=tools,
@@ -205,9 +206,9 @@ def create_governed_agent(
                 "Calculator": "execute:math",
             },
         )
-        
+
         result = agent.run("What is 25 * 4?")
-    
+
     Args:
         llm: LangChain LLM
         tools: List of LangChain tools
@@ -217,25 +218,27 @@ def create_governed_agent(
         **kwargs: Additional arguments for agent initialization
     """
     try:
-        from langchain.agents import initialize_agent, AgentType
+        from langchain.agents import AgentType, initialize_agent
     except ImportError:
         raise ImportError(
             "LangChain is required for this feature. "
             "Install it with: pip install langchain"
         )
-    
+
     toolkit = GovernedToolkit(
         tools=tools,
         client=client,
         action_map=action_map,
     )
-    
+
     agent_types = {
         "zero-shot-react-description": AgentType.ZERO_SHOT_REACT_DESCRIPTION,
         "conversational-react-description": AgentType.CONVERSATIONAL_REACT_DESCRIPTION,
-        "structured-chat-zero-shot-react-description": AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,
+        "structured-chat-zero-shot-react-description": (
+            AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION
+        ),
     }
-    
+
     return initialize_agent(
         tools=toolkit.get_tools(),
         llm=llm,
