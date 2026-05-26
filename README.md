@@ -1,6 +1,6 @@
 # MeshGuard Python SDK
 
-> **Maintenance mode:** this SDK remains supported for security patches, bug fixes, and compatibility. New agent-governance features are moving to the AGT + MeshGuard adapter. New AGT-based deployments should start with [`meshguard-agt`](https://github.com/meshguard/meshguard-agt). Existing users can keep this SDK while planning migration.
+> **Ecosystem expansion:** this SDK remains a first-class MeshGuard path for Python agents. The [`meshguard-agt`](https://github.com/meshguard/meshguard-agt) adapter adds an AGT-native path for teams that choose Microsoft Agent Governance Toolkit; it complements this SDK and the rest of the MeshGuard ecosystem.
 
 [![CI](https://github.com/meshguard/meshguard-python/actions/workflows/ci.yml/badge.svg)](https://github.com/meshguard/meshguard-python/actions/workflows/ci.yml)
 [![PyPI version](https://badge.fury.io/py/meshguard.svg)](https://pypi.org/project/meshguard/)
